@@ -1,0 +1,51 @@
+# ESP-IDF build directories
+/build/
+!build/Makefile
+!build/*.mk
+
+# ESP-IDF specific files
+/sdkconfig
+/sdkconfig.old
+
+# CMake files
+CMakeCache.txt
+CMakeFiles/
+*.cmake
+
+# Object files and libraries
+*.o
+*.a
+*.so
+*.elf
+*.bin
+*.json
+
+# VSCode settings
+.vscode/
+*.code-workspace
+
+# Eclipse settings
+.settings/
+.project
+.classpath
+
+# ESP-IDF specific generated files
+*.idf*.proj
+
+# Temporary files
+*~
+*.swp
+
+# Log files
+*.log
+
+# Compiled Python files
+*.pyc
+__pycache__/
+
+# User-specific files
+*.user
+
+# Other
+*.d
+*.s
