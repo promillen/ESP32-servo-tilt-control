@@ -21,41 +21,44 @@ void configure_accelerometer(i2c_master_dev_handle_t dev_handle) {
 
 void accelerometer_task(void *arg) {
     i2c_master_dev_handle_t dev_handle = (i2c_master_dev_handle_t)arg;
-    uint8_t reg_addr_x = OUTX_L_XL;
-    uint8_t reg_addr_y = OUTY_L_XL;
-    uint8_t accel_data[2];
+    uint8_t reg_addr = OUTX_L_XL;
+    uint8_t accel_data[4];
     float filtered_x = 0;
     float filtered_y = 0;
-    float alpha = 0.05; // Smoothing factor for exponential moving average (0 < alpha < 1)
 
     while (1) {
-        // Read X-axis data
-        ESP_ERROR_CHECK(i2c_master_transmit_receive(dev_handle, &reg_addr_x, 1, accel_data, 2, -1));
+        // Read both X and Y axes in a single transaction
+        esp_err_t err = i2c_master_transmit_receive(dev_handle, &reg_addr, 1, accel_data, 4, -1);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to read accelerometer: %s", esp_err_to_name(err));
+            vTaskDelay(pdMS_TO_TICKS(100)); // Wait before retry
+            continue;
+        }
+        
+        // Combine high and low bytes for each axis
         int16_t x = (int16_t)((accel_data[1] << 8) | accel_data[0]);
-        float x_g = x / 16384.0; // Convert raw value to g (assuming +/- 2g scale)
+        int16_t y = (int16_t)((accel_data[3] << 8) | accel_data[2]);
+        
+        // Convert raw values to g
+        float x_g = x / ACCEL_SENSITIVITY;
+        float y_g = y / ACCEL_SENSITIVITY;
 
-        // Apply moving average filter for X-axis
-        filtered_x = alpha * x_g + (1 - alpha) * filtered_x;
+        // Apply moving average filter
+        filtered_x = FILTER_ALPHA * x_g + (1 - FILTER_ALPHA) * filtered_x;
+        filtered_y = FILTER_ALPHA * y_g + (1 - FILTER_ALPHA) * filtered_y;
 
-        // Read Y-axis data
-        ESP_ERROR_CHECK(i2c_master_transmit_receive(dev_handle, &reg_addr_y, 1, accel_data, 2, -1));
-        int16_t y = (int16_t)((accel_data[1] << 8) | accel_data[0]);
-        float y_g = y / 16384.0; // Convert raw value to g
+        // Map accelerometer tilt to servo angles (0-180 degrees)
+        float angle1 = (filtered_x + 1.0f) * SERVO_MAP_SCALE;
+        float angle2 = (filtered_y + 1.0f) * SERVO_MAP_SCALE;
 
-        // Apply moving average filter for Y-axis
-        filtered_y = alpha * y_g + (1 - alpha) * filtered_y;
+        // Clamp angles to valid range
+        angle1 = fminf(fmaxf(angle1, 0.0f), 180.0f);
+        angle2 = fminf(fmaxf(angle2, 0.0f), 180.0f);
 
-        // Map the tilt of the x-axis to servo angle for Servo 1 (0-180 degrees)
-        float angle1 = (filtered_x + 1.0) * 90.0; // Map from [-1, 1] to [0, 180]
-        if (angle1 < 0) angle1 = 0;
-        if (angle1 > 180) angle1 = 180;
+        // For debugging
+        ESP_LOGD(TAG, "Angles: %.2f, %.2f", angle1, angle2);
 
-        // Map the tilt of the y-axis to servo angle for Servo 2 (0-180 degrees)
-        float angle2 = (filtered_y + 1.0) * 90.0; // Map from [-1, 1] to [0, 180]
-        if (angle2 < 0) angle2 = 0;
-        if (angle2 > 180) angle2 = 180;
-
-        // ESP_LOGI(TAG, "Servo Angle: %.2f", angle);
+        // Set servo angles
         _set_angle(angle1, angle2);
 
         vTaskDelay(pdMS_TO_TICKS(10));

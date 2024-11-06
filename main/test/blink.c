@@ -3,7 +3,7 @@
 #include "freertos/task.h"
 #include "driver/gpio.h"
 
-#define BLINK_GPIO GPIO_NUM_2  // Change this to the GPIO pin connected to your LED
+#define BLINK_GPIO GPIO_NUM_8  // Change this to the GPIO pin connected to your LED
 
 void app_main(void)
 {
